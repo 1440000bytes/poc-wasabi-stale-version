@@ -1,0 +1,5 @@
+bin/
+obj/
+*.user
+downloaded-installer/
+Logs.txt

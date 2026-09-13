@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The audited WalletWasabi checked out at commit 154c4a5 as a sibling directory.
+         See README.txt. This is the same pre-fix commit poc-nostr-forgery references. -->
+    <ProjectReference Include="../../WalletWasabi/WalletWasabi/WalletWasabi.csproj" />
+  </ItemGroup>
+
+</Project>
