@@ -13,38 +13,38 @@ release `V` and points at the authentic GitHub assets for `V`, the production
 `WalletWasabi.Fluent.Desktop/Program.cs` runs it through `Installer.StartInstallingNewVersion`
 when `DownloadNewVersion` is on (the default).
 
-## This is not a rollback of the running binary
+## Flow
 
-`UpdateManager` only accepts an announced version **greater than the current one**
-(`releases.Where(x => x.Version > currentVersion)`), so it can never move a victim below
-the version they are running. The demo shows the victim's version going **up**, from
-2.6.0 to 2.7.0.
+Victim runs 2.6.0. Latest is 2.8.2. The attacker gets the client to install the older
+2.7.0, a genuinely Wasabi-signed build, and every signature gate passes.
 
-The attack is that 2.7.0 is **not the latest** (2.8.2 is). The attacker pins the victim
-onto a stale, genuinely-signed build that sits between the victim's current version and
-the latest release, re-exposing everything fixed in `(2.7.0, 2.8.2]` while denying them
-the newest update. So the accurate label is stale-version pinning / update suppression to
-an older-than-latest signed release, not a downgrade. It only bites a victim who is behind
-the release being announced.
+```mermaid
+sequenceDiagram
+    participant A as Attacker relay
+    participant N as WasabiNostrClient
+    participant D as ReleaseDownloader
+    participant G as github.com (real Wasabi assets)
+    participant I as Installer (on app close)
 
-## Relationship to the signer-identity fix
+    Note over N: victim on 2.6.0, latest is 2.8.2
+    N->>A: REQ authors=[Wasabi team npub], kinds=[1]
+    A-->>N: kind-1 note signed by ATTACKER key<br/>version=2.7.0, URLs -> genuine v2.7.0 assets
+    Note over N: pre-fix: author never checked<br/>2.7.0 > 2.6.0, so accepted
+    N->>D: ReleaseInfo(2.7.0, attacker-supplied URLs)
+    D->>G: GET SHA256SUMS.asc / .wasabisig / Wasabi-2.7.0.deb
+    G-->>D: genuine, Wasabi-signed 2.7.0 files
+    Note over D: SHA256SUMS.wasabisig verifies vs hardcoded WasabiPubKey<br/>Wasabi-2.7.0.deb hash matches signed sums
+    D-->>I: NewSoftwareVersionInstallerAvailable(Wasabi-2.7.0.deb)
+    Note over I: installs stale 2.7.0, never the latest 2.8.2
+```
 
-The announcement is delivered over Nostr. The originally-reported forgery bug (client
-accepted an announcement from ANY signer, see `poc-nostr-forgery`) was fixed in PR #15005
-("Verify note author is wasabi team"), shipped in v2.8.2, which drops any event whose
-pubkey is not the Wasabi team key.
-
-That fix blocks the forged DELIVERY used here (an attacker key), so at HEAD the pinning
-must be delivered by a genuine team announcement, a **replay of an old genuine team note**
-(there is no freshness / `created_at` check, and `limit: 1` means the newest delivered
-note wins), or team-key compromise. The download / verify / stage chain is identical in
-every case and is unaffected by that fix. This PoC targets the same pre-fix commit
-`154c4a5` as `poc-nostr-forgery` so the whole chain runs over the wire without the team
-key.
-
-Control: the fix's own `WalletWasabi.Tests/UnitTests/WebClients/WasabiNostrClientTests.cs`
-(added in 2dbb6ec) checks that a note authored by a non-team key is dropped, so the
-identical forged announcement used here is ignored on a post-fix tree.
+The announced version can only be greater than the victim's current one
+(`releases.Where(x => x.Version > currentVersion)`), so this pins the victim onto a stale
+signed release that sits below the latest, it does not roll the binary back below what
+they run. Delivery over Nostr worked without the team key because this targets the pre-fix
+commit `154c4a5`; the signer-identity check (PR #15005, v2.8.2) drops the attacker-signed
+note, after which the same pinning needs a replayed genuine team note or a team-key
+compromise. The download / verify / install chain above is unchanged by that fix.
 
 ## How to run
 
