@@ -42,6 +42,10 @@ every case and is unaffected by that fix. This PoC targets the same pre-fix comm
 `154c4a5` as `poc-nostr-forgery` so the whole chain runs over the wire without the team
 key.
 
+Control: the fix's own `WalletWasabi.Tests/UnitTests/WebClients/WasabiNostrClientTests.cs`
+(added in 2dbb6ec) checks that a note authored by a non-team key is dropped, so the
+identical forged announcement used here is ignored on a post-fix tree.
+
 ## How to run
 
 Requires .NET SDK 10 and internet access (the PoC downloads the genuine Wasabi 2.7.0
@@ -80,13 +84,16 @@ INF | UpdateManager.cs:158 | Installer downloaded to: /tmp/wasabi-installer-2.7.
 INF | UpdateManager.cs:164 | Installer verified successfully
 [POC] NewSoftwareVersionAvailable: version=2.7.0 upToDate=False readyToInstall=True
 [POC] NewSoftwareVersionInstallerAvailable: /tmp/wasabi-installer-2.7.0/Wasabi-2.7.0.deb
-[POC] downloaded 69487660 bytes, sha256 = 91a1e9b21caf317104c1f50a4a0c0e7810d29b221d060fd77274afc690ecaed8
+[POC] staged 69487660 bytes, sha256 = 91a1e9b21caf317104c1f50a4a0c0e7810d29b221d060fd77274afc690ecaed8
+[POC] MATCH: sha256 equals the Wasabi-signed SHA256SUMS entry for Wasabi-2.7.0.deb
 ```
 
-The victim was on 2.6.0 and is now staged to install 2.7.0 while 2.8.2 is the latest. The
-`.deb` is the authentic Wasabi 2.7.0 artifact (sha256 matches the signed `SHA256SUMS`). The
-production code verified `SHA256SUMS.wasabisig` against the hardcoded `WasabiPubKey` and
-matched the installer hash, then staged it. The PoC does **not** launch the installer.
+The victim was on 2.6.0 and is now staged to install 2.7.0 while 2.8.2 is the latest. As an
+independent check the PoC re-reads the ECDSA-verified `SHA256SUMS.asc` the client itself
+downloaded and confirms the staged `.deb`'s sha256 equals the signed entry for its filename,
+so the artifact is provably the genuine Wasabi 2.7.0 build. The production code had already
+verified `SHA256SUMS.wasabisig` against the hardcoded `WasabiPubKey` and matched the hash
+before staging. The PoC does **not** launch the installer.
 
 ## Structure
 

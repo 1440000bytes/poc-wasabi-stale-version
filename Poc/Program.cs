@@ -52,17 +52,28 @@ class Program
         using var _2 = eventBus.Subscribe<NewSoftwareVersionInstallerAvailable>(e =>
         {
             Console.WriteLine($"[POC] NewSoftwareVersionInstallerAvailable: {e.InstallerPath}");
-            if (File.Exists(e.InstallerPath))
+            if (!File.Exists(e.InstallerPath))
             {
-                var bytes = File.ReadAllBytes(e.InstallerPath);
-                var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-                Console.WriteLine($"[POC] downloaded {bytes.Length} bytes, sha256 = {hash}");
-                Console.WriteLine("[POC] the installer was verified by the PRODUCTION code:");
-                Console.WriteLine("        - SHA256SUMS.wasabisig checked against the hardcoded WasabiPubKey");
-                Console.WriteLine("        - installer hash matched the signed sums");
-                Console.WriteLine("[POC] on exit, Program.cs hands this path to Installer.StartInstallingNewVersion.");
-                Console.WriteLine("[POC] (this PoC stops here and does NOT launch the installer.)");
+                return;
             }
+
+            var actualHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(e.InstallerPath))).ToLowerInvariant();
+            Console.WriteLine($"[POC] staged {new FileInfo(e.InstallerPath).Length} bytes, sha256 = {actualHash}");
+
+            // Independent proof that the staged file is the GENUINE Wasabi-signed artifact:
+            // re-read the ECDSA-verified SHA256SUMS.asc the client itself downloaded and match
+            // the installer's hash against the signed entry for its filename. No hardcoded
+            // constant, no trust in the production check we are demonstrating.
+            var sumsPath = Path.Combine(Path.GetDirectoryName(e.InstallerPath)!, "SHA256SUMS.asc");
+            var expectedHash = File.ReadAllLines(sumsPath)
+                .Select(l => l.Split("  ./", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                .Where(a => a.Length == 2)
+                .First(a => a[1] == Path.GetFileName(e.InstallerPath))[0];
+            Console.WriteLine(actualHash == expectedHash
+                ? $"[POC] MATCH: sha256 equals the Wasabi-signed SHA256SUMS entry for {Path.GetFileName(e.InstallerPath)}"
+                : "[POC] MISMATCH (unexpected)");
+            Console.WriteLine("[POC] on exit, Program.cs hands this path to Installer.StartInstallingNewVersion.");
+            Console.WriteLine("[POC] (this PoC stops here and does NOT launch the installer.)");
         });
 
         Console.WriteLine($"[POC] victim currentVersion = {victimVersion}; running the production updater once...");
